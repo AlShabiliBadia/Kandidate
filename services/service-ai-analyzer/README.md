@@ -4,14 +4,14 @@ This is the "Brain" of the architecture. It consumes batched text from the intak
 
 Unlike a standard chatbot, this service enforces **Strict Structured Output**. It doesn't just "chat", it returns a type-safe JSON object that fits our database schema perfectly.
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **AI Model:** Gemini (via google-generativeai)
 - **Structure Enforcement:** instructor (Patches Gemini to return Pydantic models)
 - **Messaging:** RabbitMQ (Pika)
 - **Validation:** Pydantic
 
-## ⚡ Key Architectural Patterns
+## Key Architectural Patterns
 
 ### 1. Deterministic AI (The "Instructor" Pattern)
 
@@ -49,9 +49,9 @@ AI is slow (I/O heavy).
    - ✅ **Pass:** Inject cv_id metadata back into the result and publish to `QUEUE_RESULTS_STORAGE`.
    - ❌ **Fail:** Publish an error report. We do not crash the worker for one bad file.
 
-## 🔌 Input / Output Contracts
+## Input / Output Contracts
 
-### 📥 Consumes (QUEUE_AI_ANALYSIS)
+### Consumes (QUEUE_AI_ANALYSIS)
 
 ```json
 {
@@ -70,7 +70,7 @@ AI is slow (I/O heavy).
 }
 ```
 
-### 📤 Produces (QUEUE_RESULTS_STORAGE)
+### Produces (QUEUE_RESULTS_STORAGE)
 
 The result is a clean, database-ready JSON object.
 
