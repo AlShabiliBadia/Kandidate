@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kandidate"
+version = "0.1.0"
+description = "Open-source, privacy-first candidate analysis pipeline."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  {name = "Badiea Al-Shabili", email = "badiea@example.com"},
+  {name = "Kandidate Maintainers"}
+]
+license = {text = "MIT"}
+keywords = ["ats", "ai", "fastapi", "cli", "kandidate"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Framework :: FastAPI",
+]
+dependencies = [
+  "click>=8.1",
+  "fastapi>=0.109",
+  "uvicorn[standard]>=0.20",
+  "pydantic>=2.6",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.4",
+  "flake8>=7.0",
+  "isort>=5.13",
+  "mypy>=1.8",
+  "pytest>=8.1",
+  "pytest-cov>=4.1",
+  "types-PyYAML",
+  "httpx>=0.26",
+  "pre-commit>=3.6",
+]
+
+[project.scripts]
+kandidate = "kandidate.cli:main"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.flake8]
+max-line-length = 100
+exclude = [".venv", "build", "dist"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unreachable = true
+strict = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["kandidate"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+precision = 2
+
+[tool.setuptools.packages.find]
+include = ["kandidate*"]
+exclude = ["tests*", "docs*", "config*", "scripts*"]

@@ -1,5 +1,0 @@
-pika
-pydantic
-pydantic-settings
-pymupdf
-python-docx
