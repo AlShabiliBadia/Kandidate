@@ -1,5 +1,0 @@
-pika
-pydantic
-pydantic-settings
-google-generativeai
-instructor>=1.6.0

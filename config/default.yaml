@@ -1,0 +1,25 @@
+logging:
+  level: INFO
+  json_format: false
+parser:
+  supported_extensions:
+    - .txt
+    - .md
+    - .json
+  encoding: utf-8
+  chunk_size: 4096
+analyzer:
+  keywords:
+    - python
+    - fastapi
+    - docker
+    - kubernetes
+    - aws
+  min_word_count: 80
+repository:
+  backend: filesystem
+  path: data/results.json
+api:
+  host: 0.0.0.0
+  port: 8000
+  reload: false

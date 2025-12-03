@@ -1,124 +1,15 @@
+version: "3.10"
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
+  api:
+    build: .
+    image: kandidate:latest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "8000:8000"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  mongodb:
-    image: mongo:7
-    container_name: mongodb
-    ports:
-      - "27017:27017"
+      - KANDIDATE_LOGGING__LEVEL=INFO
+      - KANDIDATE_REPOSITORY__PATH=/data/results.json
     volumes:
-      - mongodb_data:/data/db
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-kandidate}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  service-results-db:
-    build:
-      context: .
-      dockerfile: ./services/service-results-db/Dockerfile
-    container_name: service-results-db
-    ports:
-      - "8001:80"
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      MONGO_URL: mongodb://mongodb:27017
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    restart: unless-stopped
-
-  service-file-parser:
-    build:
-      context: .
-      dockerfile: ./services/service-file-parser/Dockerfile
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    volumes:
-      - uploads:/uploads
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
-
-  service-ai-analyzer:
-    build:
-      context: .
-      dockerfile: ./services/service-ai-analyzer/Dockerfile
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
-
-  service-api-gateway:
-    build:
-      context: .
-      dockerfile: ./services/service-api-gateway/Dockerfile
-    container_name: service-api-gateway
-    ports:
-      - "8000:80"
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      RESULTS_DB_URL: http://service-results-db:80
-      UPLOAD_VOLUME_PATH: /uploads
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kandidate}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    volumes:
-      - uploads:/uploads
-    depends_on:
-      - rabbitmq
-      - postgres
-      - service-results-db
-    restart: unless-stopped
-
-volumes:
-  mongodb_data:
-  postgres_data:
-  uploads:
+      - ./config:/app/config:ro
+      - ./data:/data
+    command: ["uvicorn", "kandidate.services.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+volumes: {}
