@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .handlers import file_handler
-from .clients import results_db_client, rabbitmq_client
+from .clients import rabbitmq_client
+from .database import mongo_operations
 from services.shared_utils import setup_logging
 from services.config import JD_MIN_LENGTH, JD_MAX_LENGTH
 from .database import get_db, Base, engine
@@ -39,16 +40,12 @@ async def health_check():
 
 
 @app.post("/jobs/submit", 
-    # Architectural Decision: We return 202 (Accepted) instead of 200 because 
-    # the actual AI analysis happens in the background via RabbitMQ.
     status_code=status.HTTP_202_ACCEPTED,
     summary="Submit CVs for Analysis",
     description="Upload CV files with job description for AI-powered matching"
 )
 async def submit_job(
     jd_text: Annotated[str, StringConstraints(min_length=JD_MIN_LENGTH, max_length=JD_MAX_LENGTH)] = Form(),
-    # Cost Constraint: Defaults to True to enforce 4s sleep in the consumer,
-    # preventing us from hitting Gemini Free Tier rate limits.
     use_delay: bool = Form(True),
     files: List[UploadFile] = File()
 ):
@@ -59,21 +56,19 @@ async def submit_job(
         logger.warning("No files provided")
         raise HTTPException(status_code=400, detail="At least one file is required")
     
-    # Files are saved to a shared Docker volume so the Parser Service can access them later.
     file_result = file_handler.process_files(files)
     
     if not file_result.saved_files:
         raise HTTPException(status_code=400, detail=file_result.error_detail)
     
     try:
-        await results_db_client.create_job(
+        await mongo_operations.create_job(
             file_result.job_id,
             file_result.correlation_id,
             jd_text,
             len(file_result.saved_files)
         )
     except HTTPException:
-        # If DB fails, delete the files.
         file_handler.cleanup_job_directory(file_result.job_dir)
         raise
     
@@ -86,10 +81,9 @@ async def submit_job(
             file_result.saved_files
         )
     except HTTPException:
-        # If publishing to queue fails, delete the files and the job from MongoDB
         file_handler.cleanup_job_directory(file_result.job_dir)
         try:
-            await results_db_client.delete_job(file_result.job_id)
+            await mongo_operations.delete_job(file_result.job_id)
             logger.info(f"Cleaned up job {file_result.job_id} from MongoDB after queue publish failure")
         except Exception as delete_error:
             logger.warning(f"Failed to delete job {file_result.job_id} from MongoDB during cleanup: {delete_error}")
@@ -112,7 +106,10 @@ async def submit_job(
     description="Retrieve the current status and results of a submitted job"
 )
 async def get_job_status(job_id: str):
-    return await results_db_client.get_job(job_id)
+    job = await mongo_operations.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @app.post("/jobs/{job_id}/add-cvs",
@@ -138,7 +135,7 @@ async def add_cvs_to_job(
     job_exists_in_mongo = False
     
     try:
-        mongo_job = await results_db_client.get_job(job_id)
+        mongo_job = await mongo_operations.get_job(job_id)
         job_exists_in_mongo = True
         correlation_id = mongo_job.get("correlation_id")
         existing_cv_count = len(mongo_job.get("results", []))
@@ -184,12 +181,12 @@ async def add_cvs_to_job(
     try:
         if job_exists_in_mongo:
             # Update existing job
-            await results_db_client.add_files_to_job(job_id, len(file_result.saved_files))
-            await results_db_client.update_job_status(job_id, "pending")
+            await mongo_operations.add_files_to_job(job_id, len(file_result.saved_files))
+            await mongo_operations.update_job_status(job_id, "pending")
             logger.info(f"Updated existing job {job_id} in MongoDB")
         else:
             # Create new job (resume)
-            await results_db_client.create_job(
+            await mongo_operations.create_job(
                 job_id,
                 file_result.correlation_id,
                 jd_text,
@@ -233,7 +230,7 @@ async def sync_job(
 
     logger.info(f"Received sync request for job {job_id}")
     
-    mongo_job = await results_db_client.get_job(job_id)
+    mongo_job = await mongo_operations.get_job(job_id)
 
     correlation_id = mongo_job.get("correlation_id", "unknown")
     

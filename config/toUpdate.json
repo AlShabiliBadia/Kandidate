@@ -1,0 +1,39 @@
+{
+  "parsed_data": {
+    "candidate_name": "string",
+    "email": "string or null",
+    "phone": "string or null",
+    "links": {
+      "linkedin": "string or null",
+      "github": "string or null",
+      "portfolio": "string or null"
+    }
+  },
+  "analysis": {
+    "match_score": 0,
+    "recommendation": "Strong Hire|Interview for Potential|Backup|Review Needed|No Fit",
+    "summary_headline": "string (one punchy sentence, e.g., 'Senior Python dev with strong scalable systems exp but lacks frontend skills.')",
+    "conceptual_matches": [
+      {
+        "requested_skill": "string (from Job Desc)",
+        "found_skill": "string (from Resume/Cover Letter)",
+        "reasoning": "string (Why is this a match?)"
+      }
+    ],
+    "skill_gaps": [
+      {
+        "missing_skill": "string",
+        "learning_curve": "Low|Medium|High",
+        "note": "string (e.g., 'Not in CV, but Cover Letter mentions interest in learning')"
+      }
+    ],
+    "risk_assessment": {
+        "level": "Low|Medium|High",
+        "flags": [
+            "string (e.g., 'Short tenure at last 3 jobs')",
+            "string (e.g., 'Large gap in employment history')"
+        ]
+    },
+    "experience_analysis": "string (2-3 sentences analyzing quality of experience vs years)"
+  }
+}

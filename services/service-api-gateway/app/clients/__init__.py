@@ -1,3 +1,3 @@
-from . import results_db_client, rabbitmq_client
+from . import rabbitmq_client
 
-__all__ = ["results_db_client", "rabbitmq_client"]
+__all__ = ["rabbitmq_client"]

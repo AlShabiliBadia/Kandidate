@@ -44,26 +44,6 @@ services:
       timeout: 5s
       retries: 5
 
-  service-results-db:
-    build:
-      context: .
-      dockerfile: ./services/service-results-db/Dockerfile
-    container_name: service-results-db
-    ports:
-      - "8001:80"
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      MONGO_URL: mongodb://mongodb:27017
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      mongodb:
-        condition: service_healthy
-    restart: unless-stopped
-
   service-file-parser:
     build:
       context: .
@@ -76,8 +56,7 @@ services:
     volumes:
       - uploads:/uploads
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - rabbitmq
     restart: unless-stopped
 
   service-ai-analyzer:
@@ -91,8 +70,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
-      rabbitmq:
-        condition: service_healthy
+      - rabbitmq
     restart: unless-stopped
 
   service-api-gateway:
@@ -106,7 +84,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASS}
-      RESULTS_DB_URL: http://service-results-db:80
+      MONGO_URL: mongodb://mongodb:27017
       UPLOAD_VOLUME_PATH: /uploads
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kandidate}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -115,7 +93,24 @@ services:
     depends_on:
       - rabbitmq
       - postgres
-      - service-results-db
+      - mongodb
+    restart: unless-stopped
+
+  service-results-consumer:
+    build:
+      context: .
+      dockerfile: ./services/service-api-gateway/Dockerfile
+    container_name: service-results-consumer
+    command: python -m services.service-api-gateway.app.consumers
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASS}
+      MONGO_URL: mongodb://mongodb:27017
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      - rabbitmq
+      - mongodb
     restart: unless-stopped
 
 volumes:

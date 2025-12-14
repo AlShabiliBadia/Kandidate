@@ -4,18 +4,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Job, CVAnalysis
-from ..clients import results_db_client
+from ..database import mongo_operations
 from services.shared_utils import setup_logging
 
 logger = setup_logging("job-sync-service")
 
 
 async def sync_job_to_postgres(job_id: str, correlation_id: str, db: AsyncSession) -> bool:
-    # Moving data from the MongoDB to Postgresql.
     try:
         logger.info(f"[{correlation_id}] Starting sync for job {job_id}")
         
-        mongo_job = await results_db_client.get_job(job_id)
+        mongo_job = await mongo_operations.get_job(job_id)
+        
+        if not mongo_job:
+            logger.warning(f"[{correlation_id}] Job {job_id} not found in MongoDB")
+            return False
         
         if mongo_job.get("status") != "complete":
             logger.warning(f"[{correlation_id}] Job {job_id} not complete (status: {mongo_job.get('status')})")
@@ -31,8 +34,6 @@ async def sync_job_to_postgres(job_id: str, correlation_id: str, db: AsyncSessio
         failed_count = len(errors)
         
         if existing_job: 
-            # Users might add files to an existing job in batches.
-            # We must detect duplicates to prevent Unique Constraint violations in Postgres.
             logger.info(
                 f"[{correlation_id}] Job {job_id} already exists in PostgreSQL, "
                 f"adding {len(successful_results)} new CVs"
@@ -80,7 +81,6 @@ async def sync_job_to_postgres(job_id: str, correlation_id: str, db: AsyncSessio
                 logger.info(f"[{correlation_id}] No new CVs to add, all already synced")
         
         else:
-            # Job doesn't exist in PostgreSQL yet! Create it.
             logger.info(
                 f"[{correlation_id}] Creating new job {job_id} in PostgreSQL: "
                 f"{len(successful_results)} successful, {failed_count} failed (discarding failed)"
@@ -130,9 +130,8 @@ async def sync_job_to_postgres(job_id: str, correlation_id: str, db: AsyncSessio
                 f"({len(successful_results)} CVs)"
             )
         
-        # Now that data is safe in PostgreSQL, delete from MongoDB.
         try:
-            await results_db_client.delete_job(job_id)
+            await mongo_operations.delete_job(job_id)
             logger.info(f"[{correlation_id}] Deleted job {job_id} from MongoDB")
         except Exception as delete_error:
             logger.warning(
