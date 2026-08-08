@@ -14,19 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  mongodb:
-    image: mongo:7
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   postgres:
     image: postgres:16-alpine
     container_name: postgres
@@ -73,18 +60,17 @@ services:
       - rabbitmq
     restart: unless-stopped
 
-  service-api-gateway:
+  service-backend:
     build:
       context: .
-      dockerfile: ./services/service-api-gateway/Dockerfile
-    container_name: service-api-gateway
+      dockerfile: ./services/service-backend/Dockerfile
+    container_name: service-backend
     ports:
       - "8000:80"
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASS}
-      MONGO_URL: mongodb://mongodb:27017
       UPLOAD_VOLUME_PATH: /uploads
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kandidate}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -93,27 +79,8 @@ services:
     depends_on:
       - rabbitmq
       - postgres
-      - mongodb
-    restart: unless-stopped
-
-  service-results-consumer:
-    build:
-      context: .
-      dockerfile: ./services/service-api-gateway/Dockerfile
-    container_name: service-results-consumer
-    command: python -m services.service-api-gateway.app.consumers
-    environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASS: ${RABBITMQ_PASS}
-      MONGO_URL: mongodb://mongodb:27017
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-    depends_on:
-      - rabbitmq
-      - mongodb
     restart: unless-stopped
 
 volumes:
-  mongodb_data:
   postgres_data:
   uploads:

@@ -1,10 +1,15 @@
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Optional
 from pika.channel import Channel
 
-from services.shared_models import JobIntakeMessage, BatchAnalysisMessage
-from services.shared_utils import publish_message, setup_logging
-from services.config import QUEUE_AI_ANALYSIS, QUEUE_RESULTS_STORAGE
+from services.shared import (
+    ApplicationFileParseMessage,
+    ApplicationAnalysisMessage,
+    publish_message,
+    setup_logging,
+    QUEUE_AI_ANALYSIS,
+    QUEUE_RESULTS_STORAGE
+)
 from ..parsers import extract_text_from_pdf, extract_text_from_docx
 from ..utils import publish_error_result
 
@@ -15,43 +20,46 @@ class FileProcessor:
     def __init__(self, channel: Channel):
         self.channel = channel
     
-    def process_job_files(self, job_message: JobIntakeMessage) -> None:
-        cv_texts = []
-        
+    def process_application_files(self, message: ApplicationFileParseMessage) -> None:
         logger.info(
-            f"[{job_message.correlation_id}] Processing {len(job_message.file_paths)} file(s) "
-            f"for job {job_message.job_id}"
+            f"Processing application {message.application_id} for job {message.job_id}"
         )
         
-        for file_info in job_message.file_paths:
-            result = self._process_single_file(
-                file_info,
-                job_message.job_id,
-                job_message.correlation_id
-            )
-            
-            if result:
-                cv_texts.append(result)
+        resume_text: Optional[str] = None
+        cover_letter_text: Optional[str] = None
         
-        if cv_texts:
-            self._publish_batch_for_analysis(job_message, cv_texts)
-        else:
-            logger.warning(
-                f"[{job_message.correlation_id}] No files successfully processed "
-                f"for job {job_message.job_id}"
+        if message.resume_path:
+            resume_text = self._extract_file_text(message.resume_path, "resume")
+        
+        if message.cover_letter_path:
+            cover_letter_text = self._extract_file_text(message.cover_letter_path, "cover_letter")
+        
+        if not resume_text and not cover_letter_text:
+            logger.error(
+                f"Failed to extract any text for application {message.application_id}"
             )
+            return
+        
+        logger.info(
+            f"Successfully extracted - Resume: {len(resume_text) if resume_text else 0} chars, "
+            f"Cover Letter: {len(cover_letter_text) if cover_letter_text else 0} chars"
+        )
+        
+        # TODO: Get JD text from database using job_id
+        jd_text = "Job description placeholder"
+        
+        analysis_message = ApplicationAnalysisMessage(
+            job_id=message.job_id,
+            application_id=message.application_id,
+            jd_text=jd_text,
+            resume_text=resume_text,
+            cover_letter_text=cover_letter_text
+        )
+        
+        publish_message(self.channel, QUEUE_AI_ANALYSIS, analysis_message, logger=logger)
+        logger.info(f"Published application {message.application_id} for AI analysis")
     
-    def _process_single_file(
-        self,
-        file_info: Dict[str, Any],
-        job_id: str,
-        correlation_id: str
-    ) -> Dict[str, Any] | None:
-        cv_id = file_info["cv_id"]
-        file_path_str = file_info["file_path"]
-        original_filename = file_info["original_filename"]
-        filename = Path(file_path_str).name
-        
+    def _extract_file_text(self, file_path_str: str, file_type: str) -> Optional[str]:
         try:
             file_path = Path(file_path_str)
             
@@ -60,59 +68,18 @@ class FileProcessor:
             
             suffix = file_path.suffix.lower()
             
-            logger.debug(
-                f"[{correlation_id}] Extracting text from {filename} "
-                f"(cv_id: {cv_id}, {suffix})"
-            )
+            logger.debug(f"Extracting {file_type} from {file_path.name} ({suffix})")
             
-            # Extract text based on file type
             if suffix == '.pdf':
-                raw_text = extract_text_from_pdf(file_path)
+                text = extract_text_from_pdf(file_path)
             elif suffix == '.docx':
-                raw_text = extract_text_from_docx(file_path)
+                text = extract_text_from_docx(file_path)
             else:
                 raise ValueError(f"Unsupported file format: {suffix}")
             
-            logger.info(
-                f"[{correlation_id}] Extracted {len(raw_text)} characters from "
-                f"{filename} (cv_id: {cv_id})"
-            )
-            
-            return {
-                "cv_id": cv_id,
-                "filename": filename,
-                "original_filename": original_filename,
-                "text": raw_text
-            }
+            logger.info(f"Extracted {len(text)} characters from {file_type}")
+            return text
             
         except Exception as e:
-            error_type = type(e).__name__
-            logger.error(
-                f"[{correlation_id}] {error_type} while processing {filename} (cv_id: {cv_id}): {e}",
-                exc_info=not isinstance(e, (FileNotFoundError, ValueError))
-            )
-            publish_error_result(
-                self.channel, job_id, correlation_id, cv_id, original_filename, str(e)
-            )
+            logger.error(f"Error extracting {file_type}: {e}", exc_info=True)
             return None
-    
-    def _publish_batch_for_analysis(
-        self,
-        job_message: JobIntakeMessage,
-        cv_texts: List[Dict[str, Any]]
-    ) -> None:
-        logger.info(
-            f"[{job_message.correlation_id}] Publishing {len(cv_texts)} CV(s) "
-            f"for AI analysis"
-        )
-        
-        batch_message = BatchAnalysisMessage(
-            job_id=job_message.job_id,
-            correlation_id=job_message.correlation_id,
-            jd_text=job_message.jd_text,
-            use_delay=job_message.use_delay,
-            cvs=cv_texts
-        )
-        
-        publish_message(self.channel, QUEUE_AI_ANALYSIS, batch_message, logger=logger)
-        logger.info(f"[{job_message.correlation_id}] Published batch for job {job_message.job_id}")

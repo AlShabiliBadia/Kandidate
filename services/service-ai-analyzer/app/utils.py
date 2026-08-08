@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from services.shared_models import AnalysisResult
+from services.shared import AnalysisResult
 
 logger = logging.getLogger(__name__)
 

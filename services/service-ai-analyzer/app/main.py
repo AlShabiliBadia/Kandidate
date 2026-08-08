@@ -1,5 +1,11 @@
-from services.shared_utils import get_rabbitmq_connection, declare_queues, setup_logging
-from services.config import settings, QUEUE_AI_ANALYSIS, QUEUE_RESULTS_STORAGE
+from services.shared import (
+    get_rabbitmq_connection,
+    declare_queues,
+    setup_logging,
+    settings,
+    QUEUE_AI_ANALYSIS,
+    QUEUE_RESULTS_STORAGE
+)
 
 from .analyzers import GeminiAnalyzer
 from .processors import CVProcessor

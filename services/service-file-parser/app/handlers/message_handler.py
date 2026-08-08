@@ -2,8 +2,7 @@ from pydantic import ValidationError as PydanticValidationError
 from pika.channel import Channel
 from pika.spec import Basic, BasicProperties
 
-from services.shared_models import JobIntakeMessage
-from services.shared_utils import setup_logging, ProcessingError
+from services.shared import ApplicationFileParseMessage, setup_logging, ProcessingError
 from ..processors import FileProcessor
 
 logger = setup_logging("message-handler")
@@ -22,19 +21,15 @@ class MessageHandler:
         body: bytes
     ) -> None:
         try:
-            logger.info("Received job intake message")
+            logger.info("Received application file parse message")
             logger.debug(f"Message preview: {body[:200]}...")
             
-            # Validate message
-            job_message = JobIntakeMessage.model_validate_json(body)
-            logger.info(f"[{job_message.correlation_id}] Validated job {job_message.job_id}")
+            message = ApplicationFileParseMessage.model_validate_json(body)
+            logger.info(f"Processing application {message.application_id} for job {message.job_id}")
             
-            # Process files
-            self.processor.process_job_files(job_message)
+            self.processor.process_application_files(message)
             
-            logger.info(
-                f"[{job_message.correlation_id}] Completed processing for job {job_message.job_id}"
-            )
+            logger.info(f"Completed processing application {message.application_id}")
             
         except PydanticValidationError as e:
             logger.error(f"Message validation failed: {e}")

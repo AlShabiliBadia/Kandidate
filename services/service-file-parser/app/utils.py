@@ -1,8 +1,11 @@
 from pika.channel import Channel
 
-from services.shared_models import JobResultMessage
-from services.shared_utils import publish_message, setup_logging
-from services.config import QUEUE_RESULTS_STORAGE
+from services.shared import (
+    JobResultMessage,
+    publish_message,
+    setup_logging,
+    QUEUE_RESULTS_STORAGE
+)
 
 logger = setup_logging("file-parser-utils")
 

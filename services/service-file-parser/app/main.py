@@ -1,5 +1,11 @@
-from services.shared_utils import get_rabbitmq_connection, declare_queues, setup_logging
-from services.config import QUEUE_JOB_INTAKE, QUEUE_AI_ANALYSIS, QUEUE_RESULTS_STORAGE
+from services.shared import (
+    get_rabbitmq_connection,
+    declare_queues,
+    setup_logging,
+    QUEUE_APPLICATION_INTAKE,
+    QUEUE_AI_ANALYSIS,
+    QUEUE_RESULTS_STORAGE
+)
 from .processors import FileProcessor
 from .handlers import MessageHandler
 
@@ -20,7 +26,7 @@ def main_worker():
         # This prevents 404 errors if this service starts before the AI service.
         declare_queues(
             channel,
-            [QUEUE_JOB_INTAKE, QUEUE_AI_ANALYSIS, QUEUE_RESULTS_STORAGE],
+            [QUEUE_APPLICATION_INTAKE, QUEUE_AI_ANALYSIS, QUEUE_RESULTS_STORAGE],
             logger=logger
         )
         
@@ -35,11 +41,11 @@ def main_worker():
         
         # Start consuming messages
         channel.basic_consume(
-            queue=QUEUE_JOB_INTAKE,
+            queue=QUEUE_APPLICATION_INTAKE,
             on_message_callback=handler.handle_job_intake
         )
         
-        logger.info(f"Listening for messages on '{QUEUE_JOB_INTAKE}'")
+        logger.info(f"Listening for messages on '{QUEUE_APPLICATION_INTAKE}'")
         logger.info("File Parser Worker is ready")
         
         channel.start_consuming()

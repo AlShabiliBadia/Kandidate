@@ -2,9 +2,7 @@ import instructor
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig, SafetySettingDict, HarmCategory, HarmBlockThreshold
 
-from services.shared_utils import setup_logging
-from services.config import GEMINI_MODEL_NAME
-from services.shared_models import AnalysisResult
+from services.shared import setup_logging, GEMINI_MODEL_NAME, AnalysisResult
 
 logger = setup_logging("gemini-analyzer")
 
